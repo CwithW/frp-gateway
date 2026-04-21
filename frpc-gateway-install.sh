@@ -55,12 +55,18 @@ do_list() {
     echo ""
     printf "  ${CYAN}%-20s %-8s %-35s %s${NC}\n" "NAME" "PORT" "URL" "STATUS"
     printf "  %-20s %-8s %-35s %s\n" "----" "----" "---" "------"
+    local conf
     for conf in "${CONF_DIR}"/*.toml; do
+        # disable errexit for parsing — grep returns 1 on no match
+        set +e
         local name port subdomain domain url svc status
         name="$(basename "${conf}" .toml)"
-        port="$({ grep 'localPort' "${conf}" | head -1 | awk '{print $NF}'; } 2>/dev/null || echo "?")"
-        subdomain="$({ grep '^subdomain' "${conf}" | head -1 | sed 's/.*= *"\(.*\)"/\1/'; } 2>/dev/null || echo "${name}")"
-        domain="$({ grep '^# subdomainHost' "${conf}" | head -1 | sed 's/^# subdomainHost = //'; } 2>/dev/null || echo "")"
+        port="$(grep 'localPort' "${conf}" 2>/dev/null | head -1 | awk '{print $NF}')"
+        subdomain="$(grep '^subdomain' "${conf}" 2>/dev/null | head -1 | sed 's/.*= *"\(.*\)"/\1/')"
+        domain="$(grep '^# subdomainHost' "${conf}" 2>/dev/null | head -1 | sed 's/^# subdomainHost = //')"
+        set -e
+        port="${port:-?}"
+        subdomain="${subdomain:-${name}}"
         if [[ -n "${domain}" ]]; then
             url="https://${subdomain}.${domain}"
         else
