@@ -59,11 +59,11 @@ do_list() {
         local name
         name="$(basename "${conf}" .toml)"
         local port
-        port="$(grep 'localPort' "${conf}" | head -1 | awk '{print $NF}')"
+        port="$(grep 'localPort' "${conf}" | head -1 | awk '{print $NF}' || echo "?")"
         local subdomain
-        subdomain="$(grep '^subdomain' "${conf}" | head -1 | sed 's/.*= *"\(.*\)"/\1/')"
+        subdomain="$(grep '^subdomain' "${conf}" | head -1 | sed 's/.*= *"\(.*\)"/\1/' || echo "${name}")"
         local domain
-        domain="$(grep '^# subdomainHost' "${conf}" | head -1 | sed 's/^# subdomainHost = //')"
+        domain="$(grep '^# subdomainHost' "${conf}" | head -1 | sed 's/^# subdomainHost = //' || echo "")"
         local url
         if [[ -n "${domain}" ]]; then
             url="https://${subdomain}.${domain}"
