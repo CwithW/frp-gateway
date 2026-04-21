@@ -168,6 +168,12 @@ else
     AUTH_TOKEN="$(generate_token)"
 fi
 
+# --- 创建自定义 404 页面（隐藏 frp 指纹）---
+cat > "${CONF_DIR}/404.html" <<'HTMLEOF'
+<!DOCTYPE html><html><head><title>404 Not Found</title></head>
+<body><center><h1>404 Not Found</h1></center><hr><center>nginx</center></body></html>
+HTMLEOF
+
 cat > "${CONF_DIR}/frps.toml" <<EOF
 bindAddr = "0.0.0.0"
 bindPort = ${BIND_PORT}
@@ -185,6 +191,8 @@ auth.method = "token"
 auth.token = "${AUTH_TOKEN}"
 
 subDomainHost = "${SUBDOMAIN_HOST}"
+
+custom404Page = "${CONF_DIR}/404.html"
 
 log.to = "/var/log/frps-gateway.log"
 log.level = "info"
