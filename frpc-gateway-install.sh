@@ -56,23 +56,17 @@ do_list() {
     printf "  ${CYAN}%-20s %-8s %-35s %s${NC}\n" "NAME" "PORT" "URL" "STATUS"
     printf "  %-20s %-8s %-35s %s\n" "----" "----" "---" "------"
     for conf in "${CONF_DIR}"/*.toml; do
-        local name
+        local name port subdomain domain url svc status
         name="$(basename "${conf}" .toml)"
-        local port
-        port="$(grep 'localPort' "${conf}" | head -1 | awk '{print $NF}' || echo "?")"
-        local subdomain
-        subdomain="$(grep '^subdomain' "${conf}" | head -1 | sed 's/.*= *"\(.*\)"/\1/' || echo "${name}")"
-        local domain
-        domain="$(grep '^# subdomainHost' "${conf}" | head -1 | sed 's/^# subdomainHost = //' || echo "")"
-        local url
+        port="$({ grep 'localPort' "${conf}" | head -1 | awk '{print $NF}'; } 2>/dev/null || echo "?")"
+        subdomain="$({ grep '^subdomain' "${conf}" | head -1 | sed 's/.*= *"\(.*\)"/\1/'; } 2>/dev/null || echo "${name}")"
+        domain="$({ grep '^# subdomainHost' "${conf}" | head -1 | sed 's/^# subdomainHost = //'; } 2>/dev/null || echo "")"
         if [[ -n "${domain}" ]]; then
             url="https://${subdomain}.${domain}"
         else
             url="${subdomain} (domain unknown)"
         fi
-        local svc
         svc="$(service_name "${name}")"
-        local status
         if systemctl is-active --quiet "${svc}" 2>/dev/null; then
             status="${GREEN}running${NC}"
         else
