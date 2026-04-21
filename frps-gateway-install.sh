@@ -246,7 +246,7 @@ if systemctl is-active --quiet "${SERVICE_NAME}"; then
     echo ""
     echo -e "  ${CYAN}客户端安装命令:${NC}"
     echo ""
-    echo "    sudo bash frpc-gateway-install.sh <服务器IP> ${BIND_PORT} ${AUTH_TOKEN} <name> <port>"
+    echo "    sudo bash frpc-gateway-install.sh <服务器IP> ${BIND_PORT} ${AUTH_TOKEN} ${SUBDOMAIN_HOST} <name> <port>"
     echo ""
     info "  查看状态:  systemctl status ${SERVICE_NAME}"
     info "  查看日志:  journalctl -u ${SERVICE_NAME} -f"

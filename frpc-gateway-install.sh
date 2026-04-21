@@ -7,11 +7,11 @@ set -euo pipefail
 #  支持多实例并存，每个 name 独立 systemd 服务
 #
 #  用法:
-#    sudo bash frpc-gateway-install.sh <server> <port> <token> <name> <local_port>
+#    sudo bash frpc-gateway-install.sh <server> <port> <token> <subdomain_host> <name> <local_port>
 #
 #  示例:
-#    sudo bash frpc-gateway-install.sh 1.2.3.4 2001 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx myapp 3000
-#    sudo bash frpc-gateway-install.sh 1.2.3.4 2001 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx myapp1 3001
+#    sudo bash frpc-gateway-install.sh 1.2.3.4 2001 <token> example.com myapp 3000
+#    sudo bash frpc-gateway-install.sh 1.2.3.4 2001 <token> example.com myapp1 3001
 #
 #  管理:
 #    bash frpc-gateway-install.sh --list
@@ -53,19 +53,23 @@ do_list() {
         return
     fi
     echo ""
-    printf "  ${CYAN}%-20s %-8s %-25s %s${NC}\n" "NAME" "PORT" "SERVER" "STATUS"
-    printf "  %-20s %-8s %-25s %s\n" "----" "----" "------" "------"
+    printf "  ${CYAN}%-20s %-8s %-35s %s${NC}\n" "NAME" "PORT" "URL" "STATUS"
+    printf "  %-20s %-8s %-35s %s\n" "----" "----" "---" "------"
     for conf in "${CONF_DIR}"/*.toml; do
         local name
         name="$(basename "${conf}" .toml)"
         local port
         port="$(grep 'localPort' "${conf}" | head -1 | awk '{print $NF}')"
         local subdomain
-        subdomain="$(grep 'subdomain' "${conf}" | head -1 | sed 's/.*= *"\(.*\)"/\1/')"
-        local server
-        server="$(grep 'serverAddr' "${conf}" | head -1 | sed 's/.*= *"\(.*\)"/\1/')"
-        local server_port
-        server_port="$(grep 'serverPort' "${conf}" | head -1 | awk '{print $NF}')"
+        subdomain="$(grep '^subdomain' "${conf}" | head -1 | sed 's/.*= *"\(.*\)"/\1/')"
+        local domain
+        domain="$(grep '^# subdomainHost' "${conf}" | head -1 | sed 's/^# subdomainHost = //')"
+        local url
+        if [[ -n "${domain}" ]]; then
+            url="https://${subdomain}.${domain}"
+        else
+            url="${subdomain} (domain unknown)"
+        fi
         local svc
         svc="$(service_name "${name}")"
         local status
@@ -74,7 +78,7 @@ do_list() {
         else
             status="${RED}stopped${NC}"
         fi
-        printf "  %-20s %-8s %-25s %b\n" "${name}" "${port}" "${server}:${server_port}" "${status}"
+        printf "  %-20s %-8s %-35s %b\n" "${name}" "${port}" "${url}" "${status}"
     done
     echo ""
 }
@@ -140,21 +144,23 @@ case "${1:-}" in
         ;;
     --help|-h)
         echo "用法:"
-        echo "  sudo $0 <server> <port> <token> <name> <local_port>"
-        echo "                                  添加代理: name → 127.0.0.1:local_port"
+        echo "  sudo $0 <server> <port> <token> <subdomain_host> <name> <local_port>"
+        echo "                                  添加代理: name.subdomain_host → 127.0.0.1:local_port"
         echo "  $0 --list                       列出所有已注册代理"
         echo "  sudo $0 --remove <name>         移除指定代理"
         echo "  sudo $0 --uninstall-all         完全卸载"
         echo ""
         echo "参数:"
-        echo "  server       frps 服务器地址 (IP 或域名)"
-        echo "  port         frps 控制端口"
-        echo "  token        frps auth token"
-        echo "  name         代理名称 (将作为子域名)"
-        echo "  local_port   本地要代理的端口"
+        echo "  server           frps 服务器地址 (IP 或域名)"
+        echo "  port             frps 控制端口"
+        echo "  token            frps auth token"
+        echo "  subdomain_host   子域名主机 (例: example.com)"
+        echo "  name             代理名称 (将作为子域名前缀)"
+        echo "  local_port       本地要代理的端口"
         echo ""
         echo "示例:"
-        echo "  sudo $0 1.2.3.4 2001 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx myapp 3000"
+        echo "  sudo $0 1.2.3.4 2001 xxxxxxxx-xxxx example.com myapp 3000"
+        echo "  → https://myapp.example.com → 127.0.0.1:3000"
         exit 0
         ;;
     -*)
@@ -165,9 +171,10 @@ case "${1:-}" in
 esac
 
 # --- 添加代理 ---
-if [[ $# -lt 5 ]]; then
-    echo "用法: sudo $0 <server> <port> <token> <name> <local_port>"
-    echo "  例: sudo $0 1.2.3.4 2001 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx myapp 3000"
+if [[ $# -lt 6 ]]; then
+    echo "用法: sudo $0 <server> <port> <token> <subdomain_host> <name> <local_port>"
+    echo "  例: sudo $0 1.2.3.4 2001 xxxxxxxx-xxxx example.com myapp 3000"
+    echo "      → https://myapp.example.com → 127.0.0.1:3000"
     echo ""
     echo "运行 $0 --help 查看更多命令"
     exit 1
@@ -176,8 +183,9 @@ fi
 FRP_SERVER="$1"
 FRP_SERVER_PORT="$2"
 FRP_TOKEN="$3"
-PROXY_NAME="$4"
-LOCAL_PORT="$5"
+SUBDOMAIN_HOST="$4"
+PROXY_NAME="$5"
+LOCAL_PORT="$6"
 
 if ! [[ "${FRP_SERVER_PORT}" =~ ^[0-9]+$ ]] || (( FRP_SERVER_PORT < 1 || FRP_SERVER_PORT > 65535 )); then
     error "服务器端口无效: ${FRP_SERVER_PORT}"
@@ -251,6 +259,7 @@ if [[ -f "${CONF_DIR}/${PROXY_NAME}.toml" ]]; then
 fi
 
 cat > "${CONF_DIR}/${PROXY_NAME}.toml" <<EOF
+# subdomainHost = ${SUBDOMAIN_HOST}
 serverAddr = "${FRP_SERVER}"
 serverPort = ${FRP_SERVER_PORT}
 
@@ -303,7 +312,7 @@ sleep 1
 if systemctl is-active --quiet "${SVC}"; then
     info "frpc-gateway 启动成功！"
     echo ""
-    info "  ${PROXY_NAME} → 127.0.0.1:${LOCAL_PORT} (via ${FRP_SERVER}:${FRP_SERVER_PORT})"
+    info "  https://${PROXY_NAME}.${SUBDOMAIN_HOST} → 127.0.0.1:${LOCAL_PORT}"
     echo ""
     info "  查看状态:  systemctl status ${SVC}"
     info "  查看日志:  journalctl -u ${SVC} -f"

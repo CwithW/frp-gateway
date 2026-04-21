@@ -50,11 +50,11 @@ Caddy example:
 On any machine where you want to expose a local port:
 
 ```bash
-# Publish local port 3000 as myapp.<subdomain_host>
-sudo bash frpc-gateway-install.sh <server_ip> <port> <token> myapp 3000
+# Publish local port 3000 as myapp.example.com
+sudo bash frpc-gateway-install.sh <server_ip> <port> <token> example.com myapp 3000
 
 # Add more services (won't affect existing ones)
-sudo bash frpc-gateway-install.sh <server_ip> <port> <token> another-app 8080
+sudo bash frpc-gateway-install.sh <server_ip> <port> <token> example.com another-app 8080
 ```
 
 ### Management
